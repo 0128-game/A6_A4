@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A6×8枚 → A4両面1枚変換ツール</title>
+    <title>A6×8枚 → A4両面1枚変換ツール（縦置き版）</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <style>
         body {
@@ -14,7 +14,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             background: #fff;
             padding: 30px;
@@ -33,23 +33,40 @@
             border-radius: 6px;
             text-align: center;
             border: 2px dashed #bdc3c7;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         .file-list {
             margin-top: 10px;
             font-size: 14px;
             text-align: left;
-            max-height: 150px;
+            max-height: 120px;
             overflow-y: auto;
             background: #fff;
             padding: 10px;
             border-radius: 4px;
             border: 1px solid #ddd;
         }
+        .filename-section {
+            background: #fdf6ec;
+            border: 1px solid #f5dab1;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .filename-section input[type="date"] {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
         .layout-container {
             display: flex;
             justify-content: space-between;
-            gap: 20px;
+            gap: 30px;
             margin-bottom: 30px;
         }
         .page-box {
@@ -66,13 +83,13 @@
             margin-bottom: 15px;
             color: #34495e;
         }
-        /* A4比率のグリッド (ヨコ置き) */
+        /* A4比率のグリッド (タテ置き) */
         .grid-a4 {
             display: grid;
             grid-template-columns: 1fr 1fr;
             grid-template-rows: 1fr 1fr;
             gap: 10px;
-            aspect-ratio: 1.414 / 1; /* A4横の比率 */
+            aspect-ratio: 1 / 1.414; /* A4縦の比率 */
             background: #e2e8f0;
             padding: 10px;
             border-radius: 4px;
@@ -82,52 +99,60 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 10px;
+            padding: 5px;
             border-radius: 4px;
             font-size: 12px;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
         }
         .cell select {
             margin-top: 8px;
             width: 100%;
-            max-width: 140px;
+            max-width: 130px;
             padding: 4px;
             font-size: 11px;
         }
-        /* 表裏の組み合わせがわかる色分け */
-        .pair-tl { background-color: #ffdad9; border: 2px solid #ff6b6b; } /* 左上 ⇔ 右上 (赤) */
-        .pair-tr { background-color: #d6e4ff; border: 2px solid #4d8dfd; } /* 右上 ⇔ 左上 (青) */
-        .pair-bl { background-color: #d3f9d8; border: 2px solid #51cf66; } /* 左下 ⇔ 右下 (緑) */
-        .pair-br { background-color: #fef08a; border: 2px solid #facc15; } /* 右下 ⇔ 左下 (黄) */
+        /* 表裏の組み合わせがわかる色分け（長辺綴じ用） */
+        .pair-tl { background-color: #ffdad9; border: 2px solid #ff6b6b; } /* 表左上 ⇔ 裏右上 (赤) */
+        .pair-tr { background-color: #d6e4ff; border: 2px solid #4d8dfd; } /* 表右上 ⇔ 裏左上 (青) */
+        .pair-bl { background-color: #d3f9d8; border: 2px solid #51cf66; } /* 表左下 ⇔ 裏右下 (緑) */
+        .pair-br { background-color: #fef08a; border: 2px solid #facc15; } /* 表右下 ⇔ 裏左下 (黄) */
 
         .btn-container {
             text-align: center;
         }
         .btn {
-            background: #2ecc71;
+            background: #3498db;
             color: white;
             border: none;
-            padding: 12px 30px;
+            padding: 15px 40px;
             font-size: 16px;
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
             transition: background 0.2s;
         }
-        .btn:hover { background: #27ae60; }
+        .btn:hover { background: #2980b9; }
         .btn:disabled { background: #95a5a6; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>A6片面8枚 → A4両面1枚 結合ツール</h1>
+    <h1>A6片面8枚 → A4両面1枚 結合ツール（縦置き）</h1>
 
     <div class="upload-section">
         <input type="file" id="pdf-files" accept="application/pdf" multiple>
         <p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">※複数のPDF（A6サイズ）を選択してください</p>
         <div id="file-list" class="file-list" style="display:none;"></div>
+    </div>
+
+    <div class="filename-section">
+        <strong>出力ファイル名の日付指定：</strong>
+        <input type="date" id="date-start">
+        <span> ～ </span>
+        <input type="date" id="date-end">
     </div>
 
     <div class="layout-container">
@@ -161,6 +186,13 @@
     const pdfFilesInput = document.getElementById('pdf-files');
     const fileListDiv = document.getElementById('file-list');
     const generateBtn = document.getElementById('generate-btn');
+    const dateStartInput = document.getElementById('date-start');
+    const dateEndInput = document.getElementById('date-end');
+
+    // 初期状態で今日の日付をセット
+    const todayStr = new Date().toISOString().split('T')[0];
+    dateStartInput.value = todayStr;
+    dateEndInput.value = todayStr;
 
     // ドロップダウンのIDリスト
     const selectIds = [
@@ -168,7 +200,6 @@
         'select-b-tl', 'select-b-tr', 'select-b-bl', 'select-b-br'
     ];
 
-    // アップロードされたPDFのデータを保持する配列
     let uploadedPdfList = [];
 
     // ファイル選択時の処理
@@ -180,13 +211,11 @@
         fileListDiv.innerHTML = '<strong>読み込み済みファイルリスト:</strong>';
         fileListDiv.style.display = 'block';
 
-        // ドロップダウンを初期化
         selectIds.forEach(id => {
             const select = document.getElementById(id);
             select.innerHTML = '<option value="">白紙</option>';
         });
 
-        // 各PDFを解析
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             try {
@@ -200,17 +229,15 @@
                     pageCount: pageCount
                 });
 
-                // リスト表示
                 const fileInfo = document.createElement('div');
                 fileInfo.textContent = `📄 [ID:${i}] ${file.name} (${pageCount}ページ)`;
                 fileListDiv.appendChild(fileInfo);
 
-                // 各選択肢にページを追加
                 selectIds.forEach(id => {
                     const select = document.getElementById(id);
                     for (let p = 0; p < pageCount; p++) {
                         const option = document.createElement('option');
-                        option.value = `${i}-${p}`; // "ファイルインデックス-ページインデックス"
+                        option.value = `${i}-${p}`;
                         option.textContent = `[ID:${i}] P.${p + 1}`;
                         select.appendChild(option);
                     }
@@ -225,45 +252,46 @@
         generateBtn.disabled = uploadedPdfList.length === 0;
     });
 
+    // 日付文字列のハイフンをアンダースコアに変換する関数
+    function formatDateStr(dateString) {
+        if (!dateString) return "0000_00_00";
+        return dateString.replace(/-/g, '_');
+    }
+
     // PDF生成メインロジック
     generateBtn.addEventListener('click', async () => {
         generateBtn.disabled = true;
         generateBtn.textContent = '処理中...';
 
         try {
-            // 新規PDF（A4横サイズ）の作成
             const outPdfDoc = await PDFLib.PDFDocument.create();
             
-            // A4横サイズ定義 (841.89 x 595.28 ポイント)
-            const a4Width = PDFLib.PageSizes.A4[1];
-            const a4Height = PDFLib.PageSizes.A4[0];
+            // A4縦サイズ定義 (595.28 x 841.89 ポイント)
+            const a4Width = PDFLib.PageSizes.A4[0];
+            const a4Height = PDFLib.PageSizes.A4[1];
             
-            // A6サイズ（A4の4分の1）
+            // A6サイズ（縦置きA4の4分の1）
             const a6Width = a4Width / 2;
             const a6Height = a4Height / 2;
 
-            // 表・裏の2ページを追加
+            // 縦置きで2ページ作成
             const frontPage = outPdfDoc.addPage([a4Width, a4Height]);
             const backPage = outPdfDoc.addPage([a4Width, a4Height]);
 
-            // ソースPDFファイルをすべてロード
             const loadedDocs = [];
             for (const item of uploadedPdfList) {
                 loadedDocs.push(await PDFLib.PDFDocument.load(item.buffer));
             }
 
-            // 埋め込み用関数
             const embedAndDraw = async (selectId, targetPage, x, y) => {
                 const val = document.getElementById(selectId).value;
-                if (!val) return; // 白紙ならスキップ
+                if (!val) return;
 
                 const [fileIdx, pageIdx] = val.split('-').map(Number);
                 const srcDoc = loadedDocs[fileIdx];
                 
-                // 特定のページをコピーして埋め込み
                 const [embeddedPage] = await outPdfDoc.embedPages([srcDoc.getPage(pageIdx)]);
                 
-                // A6枠にぴったり収まるように描画
                 targetPage.drawPage(embeddedPage, {
                     x: x,
                     y: y,
@@ -272,21 +300,20 @@
                 });
             };
 
-            // --- 表面の配置 ---
-            // PDF-Libの座標系は「左下が(0,0)」
+            // --- 表面の配置 (PDF-Libは左下が原点 0,0) ---
             await embedAndDraw('select-f-tl', frontPage, 0, a6Height);       // 左上
             await embedAndDraw('select-f-tr', frontPage, a6Width, a6Height); // 右上
             await embedAndDraw('select-f-bl', frontPage, 0, 0);              // 左下
             await embedAndDraw('select-f-br', frontPage, a6Width, 0);        // 右下
 
-            // --- 裏面の配置 ---
-            await embedAndDraw('select-b-tl', backPage, 0, a6Height);       // 左上
-            await embedAndDraw('select-b-tr', backPage, a6Width, a6Height); // 右上
-            await embedAndDraw('select-b-bl', backPage, 0, 0);              // 左下
-            await embedAndDraw('select-b-br', backPage, a6Width, 0);        // 右下
+            // --- 裏面の配置 (長辺綴じ用の反転) ---
+            await embedAndDraw('select-b-tl', backPage, 0, a6Height);       // 左上 (表の右上に対応)
+            await embedAndDraw('select-b-tr', backPage, a6Width, a6Height); // 右上 (表の左上に対応)
+            await embedAndDraw('select-b-bl', backPage, 0, 0);              // 左下 (表の右下に対応)
+            await embedAndDraw('select-b-br', backPage, a6Width, 0);        // 右下 (表の左下に対応)
 
-            // --- 表面に切り取り用の細い十字の点線を挿入 ---
-            // 縦の点線
+            // --- 表面に切り取り用の十字点線を挿入 ---
+            // 縦の点線 (中央)
             frontPage.drawLine({
                 start: { x: a6Width, y: 0 },
                 end: { x: a6Width, y: a4Height },
@@ -294,7 +321,7 @@
                 color: PDFLib.rgb(0.5, 0.5, 0.5),
                 dashArray: [4, 4]
             });
-            // 横の点線
+            // 横の点線 (中央)
             frontPage.drawLine({
                 start: { x: 0, y: a6Height },
                 end: { x: a4Width, y: a6Height },
@@ -303,12 +330,17 @@
                 dashArray: [4, 4]
             });
 
+            // ファイル名の生成 (yyyy_mm_dd-yyyy_mm_dd.pdf)
+            const startFormatted = formatDateStr(dateStartInput.value);
+            const endFormatted = formatDateStr(dateEndInput.value);
+            const downloadFileName = `${startFormatted}-${endFormatted}.pdf`;
+
             // PDFの保存とダウンロード
             const pdfBytes = await outPdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = 'combined_A4_double_sided.pdf';
+            link.download = downloadFileName;
             link.click();
 
         } catch (err) {
