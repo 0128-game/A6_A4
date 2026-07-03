@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A6×8枚 → A4両面1枚変換ツール（縦置き版）</title>
+    <title>A6×8枚 → A4両面1枚変換ツール（縦横切り替え版）</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <style>
         body {
@@ -14,7 +14,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 950px;
+            max-width: 1000px;
             margin: 0 auto;
             background: #fff;
             padding: 30px;
@@ -46,22 +46,38 @@
             border-radius: 4px;
             border: 1px solid #ddd;
         }
-        .filename-section {
+        /* 設定エリア */
+        .config-section {
             background: #fdf6ec;
             border: 1px solid #f5dab1;
             padding: 15px;
             border-radius: 6px;
             margin-bottom: 25px;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 25px;
         }
-        .filename-section input[type="date"] {
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-section input[type="date"], .config-section select {
             padding: 6px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 14px;
+        }
+        .config-section input[type="checkbox"] {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+        .config-section label {
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
         }
         .layout-container {
             display: flex;
@@ -75,6 +91,9 @@
             border: 2px solid #ddd;
             border-radius: 6px;
             padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .page-title {
             text-align: center;
@@ -82,18 +101,33 @@
             font-size: 18px;
             margin-bottom: 15px;
             color: #34495e;
+            width: 100%;
         }
-        /* A4比率のグリッド (タテ置き) */
+        
+        /* 動的に比率が変わるA4グリッド */
         .grid-a4 {
             display: grid;
             grid-template-columns: 1fr 1fr;
             grid-template-rows: 1fr 1fr;
             gap: 10px;
-            aspect-ratio: 1 / 1.414; /* A4縦の比率 */
             background: #e2e8f0;
             padding: 10px;
             border-radius: 4px;
+            width: 100%;
+            max-width: 320px;
+            box-sizing: border-box;
+            transition: aspect-ratio 0.3s;
         }
+        /* 縦置きのスタイル */
+        .portrait {
+            aspect-ratio: 1 / 1.414;
+        }
+        /* 横置きのスタイル */
+        .landscape {
+            aspect-ratio: 1.414 / 1;
+            max-width: 420px; /* 横長時は幅を少し広げる */
+        }
+
         .cell {
             display: flex;
             flex-direction: column;
@@ -113,11 +147,12 @@
             padding: 4px;
             font-size: 11px;
         }
-        /* 表裏の組み合わせがわかる色分け（長辺綴じ用） */
-        .pair-tl { background-color: #ffdad9; border: 2px solid #ff6b6b; } /* 表左上 ⇔ 裏右上 (赤) */
-        .pair-tr { background-color: #d6e4ff; border: 2px solid #4d8dfd; } /* 表右上 ⇔ 裏左上 (青) */
-        .pair-bl { background-color: #d3f9d8; border: 2px solid #51cf66; } /* 表左下 ⇔ 裏右下 (緑) */
-        .pair-br { background-color: #fef08a; border: 2px solid #facc15; } /* 表右下 ⇔ 裏左下 (黄) */
+
+        /* 長辺綴じ用ペア色分け用の枠線・背景色 */
+        .pair-tl { background-color: #ffdad9; border: 2px solid #ff6b6b; } 
+        .pair-tr { background-color: #d6e4ff; border: 2px solid #4d8dfd; } 
+        .pair-bl { background-color: #d3f9d8; border: 2px solid #51cf66; } 
+        .pair-br { background-color: #fef08a; border: 2px solid #facc15; } 
 
         .btn-container {
             text-align: center;
@@ -134,51 +169,57 @@
             transition: background 0.2s;
         }
         .btn:hover { background: #2980b9; }
-        .btn:disabled { background: #95a5a6; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>A6片面8枚 → A4両面1枚 結合ツール（縦置き）</h1>
+    <h1>A6片面8枚 → A4両面1枚 結合ツール</h1>
 
     <div class="upload-section">
         <input type="file" id="pdf-files" accept="application/pdf" multiple>
-        <p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">※複数のPDF（A6サイズ）を選択してください</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">※複数のPDFを選択してください（空欄のままでも出力可能です）</p>
         <div id="file-list" class="file-list" style="display:none;"></div>
     </div>
 
-    <div class="filename-section">
-        <strong>出力ファイル名の日付指定：</strong>
-        <input type="date" id="date-start">
-        <span> ～ </span>
-        <input type="date" id="date-end">
+    <div class="config-section">
+        <div class="config-item">
+            <strong>用紙の向き：</strong>
+            <select id="page-orientation">
+                <option value="portrait" selected>縦置き (Portrait)</option>
+                <option value="landscape">横置き (Landscape)</option>
+            </select>
+        </div>
+
+        <div class="config-item" style="border-left: 2px solid #f5dab1; padding-left: 20px;">
+            <strong>ファイル名の日付：</strong>
+            <input type="date" id="date-start">
+            <span> ～ </span>
+            <input type="date" id="date-end">
+        </div>
+        
+        <div class="config-item" style="border-left: 2px solid #f5dab1; padding-left: 20px;">
+            <input type="checkbox" id="enable-lines" checked>
+            <label for="enable-lines">表面に切り取り用の十字点線を入れる</label>
+        </div>
     </div>
 
     <div class="layout-container">
         <div class="page-box">
-            <div class="page-title">表面（十字点線あり）</div>
-            <div class="grid-a4">
-                <div class="cell pair-tl">左上 (表)<select id="select-f-tl"><option value="">白紙</option></select></div>
-                <div class="cell pair-tr">右上 (表)<select id="select-f-tr"><option value="">白紙</option></select></div>
-                <div class="cell pair-bl">左下 (表)<select id="select-f-bl"><option value="">白紙</option></select></div>
-                <div class="cell pair-br">右下 (表)<select id="select-f-br"><option value="">白紙</option></select></div>
-            </div>
+            <div class="page-title">表面</div>
+            <div id="grid-front" class="grid-a4 portrait">
+                </div>
         </div>
 
         <div class="page-box">
             <div class="page-title">裏面（長辺綴じ反転）</div>
-            <div class="grid-a4">
-                <div class="cell pair-tr">左上 (裏)<select id="select-b-tl"><option value="">白紙</option></select></div>
-                <div class="cell pair-tl">右上 (裏)<select id="select-b-tr"><option value="">白紙</option></select></div>
-                <div class="cell pair-br">左下 (裏)<select id="select-b-bl"><option value="">白紙</option></select></div>
-                <div class="cell pair-bl">右下 (裏)<select id="select-b-br"><option value="">白紙</option></select></div>
-            </div>
+            <div id="grid-back" class="grid-a4 portrait">
+                </div>
         </div>
     </div>
 
     <div class="btn-container">
-        <button id="generate-btn" class="btn" disabled>A4両面PDFを生成・ダウンロード</button>
+        <button id="generate-btn" class="btn">A4両面PDFを生成・ダウンロード</button>
     </div>
 </div>
 
@@ -188,19 +229,96 @@
     const generateBtn = document.getElementById('generate-btn');
     const dateStartInput = document.getElementById('date-start');
     const dateEndInput = document.getElementById('date-end');
+    const enableLinesCheckbox = document.getElementById('enable-lines');
+    const orientationSelect = document.getElementById('page-orientation');
+    const gridFront = document.getElementById('grid-front');
+    const gridBack = document.getElementById('grid-back');
 
-    // 初期状態で今日の日付をセット
     const todayStr = new Date().toISOString().split('T')[0];
     dateStartInput.value = todayStr;
     dateEndInput.value = todayStr;
 
-    // ドロップダウンのIDリスト
-    const selectIds = [
-        'select-f-tl', 'select-f-tr', 'select-f-bl', 'select-f-br',
-        'select-b-tl', 'select-b-tr', 'select-b-bl', 'select-b-br'
-    ];
-
     let uploadedPdfList = [];
+
+    // レイアウト定義データ (長辺綴じを考慮した表裏ペアの組み合わせ)
+    const layouts = {
+        portrait: {
+            front: [
+                { id: 'select-f-tl', text: '左上 (表)', class: 'pair-tl' }, { id: 'select-f-tr', text: '右上 (表)', class: 'pair-tr' },
+                { id: 'select-f-bl', text: '左下 (表)', class: 'pair-bl' }, { id: 'select-f-br', text: '右下 (表)', class: 'pair-br' }
+            ],
+            back: [
+                // 縦置き長辺綴じ：表の「右」が裏の「左」にくる
+                { id: 'select-b-tl', text: '左上 (裏)', class: 'pair-tr' }, { id: 'select-b-tr', text: '右上 (裏)', class: 'pair-tl' },
+                { id: 'select-b-bl', text: '左下 (裏)', class: 'pair-br' }, { id: 'select-b-br', text: '右下 (裏)', class: 'pair-bl' }
+            ]
+        },
+        landscape: {
+            front: [
+                { id: 'select-f-tl', text: '左上 (表)', class: 'pair-tl' }, { id: 'select-f-tr', text: '右上 (表)', class: 'pair-tr' },
+                { id: 'select-f-bl', text: '左下 (表)', class: 'pair-bl' }, { id: 'select-f-br', text: '右下 (表)', class: 'pair-br' }
+            ],
+            back: [
+                // 横置き長辺綴じ：表の「下」が裏の「上」にくる
+                { id: 'select-b-tl', text: '左上 (裏)', class: 'pair-bl' }, { id: 'select-b-tr', text: '右上 (裏)', class: 'pair-br' },
+                { id: 'select-b-bl', text: '左下 (裏)', class: 'pair-tl' }, { id: 'select-b-br', text: '右下 (裏)', class: 'pair-tr' }
+            ]
+        }
+    };
+
+    // UIグリッドを動的に生成する関数
+    function renderGrids() {
+        const orientation = orientationSelect.value;
+        
+        // クラスの切り替え
+        gridFront.className = `grid-a4 ${orientation}`;
+        gridBack.className = `grid-a4 ${orientation}`;
+
+        // 現在選択されている値を退避
+        const currentValues = {};
+        const allIds = [
+            'select-f-tl', 'select-f-tr', 'select-f-bl', 'select-f-br',
+            'select-b-tl', 'select-b-tr', 'select-b-bl', 'select-b-br'
+        ];
+        allIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) currentValues[id] = el.value;
+        });
+
+        // グリッドの中身を再構築
+        const renderPage = (gridEl, items) => {
+            gridEl.innerHTML = '';
+            items.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = `cell ${item.class}`;
+                cell.innerHTML = `${item.text}<select id="${item.id}"><option value="">白紙</option></select>`;
+                gridEl.appendChild(cell);
+
+                // アップロード済みPDFがあれば選択肢を再追加
+                const select = cell.querySelector('select');
+                uploadedPdfList.forEach((pdf, i) => {
+                    for (let p = 0; p < pdf.pageCount; p++) {
+                        const option = document.createElement('option');
+                        option.value = `${i}-${p}`;
+                        option.textContent = `[ID:${i}] P.${p + 1}`;
+                        select.appendChild(option);
+                    }
+                });
+
+                // 退避していた値を復元
+                if (currentValues[item.id]) {
+                    select.value = currentValues[item.id];
+                }
+            });
+        };
+
+        renderPage(gridFront, layouts[orientation].front);
+        renderPage(gridBack, layouts[orientation].back);
+    }
+
+    // 初期化
+    renderGrids();
+    orientationSelect.addEventListener('change', renderGrids);
 
     // ファイル選択時の処理
     pdfFilesInput.addEventListener('change', async (e) => {
@@ -210,11 +328,6 @@
         uploadedPdfList = [];
         fileListDiv.innerHTML = '<strong>読み込み済みファイルリスト:</strong>';
         fileListDiv.style.display = 'block';
-
-        selectIds.forEach(id => {
-            const select = document.getElementById(id);
-            select.innerHTML = '<option value="">白紙</option>';
-        });
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -233,48 +346,55 @@
                 fileInfo.textContent = `📄 [ID:${i}] ${file.name} (${pageCount}ページ)`;
                 fileListDiv.appendChild(fileInfo);
 
-                selectIds.forEach(id => {
-                    const select = document.getElementById(id);
-                    for (let p = 0; p < pageCount; p++) {
-                        const option = document.createElement('option');
-                        option.value = `${i}-${p}`;
-                        option.textContent = `[ID:${i}] P.${p + 1}`;
-                        select.appendChild(option);
-                    }
-                });
-
             } catch (err) {
                 console.error(err);
                 alert(`PDFの読み込みに失敗しました: ${file.name}`);
             }
         }
-
-        generateBtn.disabled = uploadedPdfList.length === 0;
+        // セレクトボックスを更新
+        renderGrids();
     });
 
-    // 日付文字列のハイフンをアンダースコアに変換する関数
     function formatDateStr(dateString) {
         if (!dateString) return "0000_00_00";
         return dateString.replace(/-/g, '_');
     }
 
-    // PDF生成メインロジック
+    // PDF生成
     generateBtn.addEventListener('click', async () => {
+        const allIds = [
+            'select-f-tl', 'select-f-tr', 'select-f-bl', 'select-f-br',
+            'select-b-tl', 'select-b-tr', 'select-b-bl', 'select-b-br'
+        ];
+
+        let blankCount = 0;
+        allIds.forEach(id => {
+            if (document.getElementById(id).value === "") blankCount++;
+        });
+
+        if (blankCount > 0) {
+            const message = blankCount === 8 
+                ? "すべての面（8面）が白紙として選択されています。このまま出力しますか？" 
+                : `配置に白紙が ${blankCount} 箇所含まれています。このまま出力しますか？`;
+            if (!confirm(message)) return; 
+        }
+
         generateBtn.disabled = true;
         generateBtn.textContent = '処理中...';
 
         try {
             const outPdfDoc = await PDFLib.PDFDocument.create();
+            const isLandscape = orientationSelect.value === 'landscape';
             
-            // A4縦サイズ定義 (595.28 x 841.89 ポイント)
-            const a4Width = PDFLib.PageSizes.A4[0];
-            const a4Height = PDFLib.PageSizes.A4[1];
+            // 縦横に応じた基本サイズ決定
+            const baseW = PDFLib.PageSizes.A4[0];
+            const baseH = PDFLib.PageSizes.A4[1];
+            const a4Width = isLandscape ? baseH : baseW;
+            const a4Height = isLandscape ? baseW : baseH;
             
-            // A6サイズ（縦置きA4の4分の1）
             const a6Width = a4Width / 2;
             const a6Height = a4Height / 2;
 
-            // 縦置きで2ページ作成
             const frontPage = outPdfDoc.addPage([a4Width, a4Height]);
             const backPage = outPdfDoc.addPage([a4Width, a4Height]);
 
@@ -285,57 +405,48 @@
 
             const embedAndDraw = async (selectId, targetPage, x, y) => {
                 const val = document.getElementById(selectId).value;
-                if (!val) return;
+                if (!val) return; 
 
                 const [fileIdx, pageIdx] = val.split('-').map(Number);
                 const srcDoc = loadedDocs[fileIdx];
-                
                 const [embeddedPage] = await outPdfDoc.embedPages([srcDoc.getPage(pageIdx)]);
                 
                 targetPage.drawPage(embeddedPage, {
-                    x: x,
-                    y: y,
-                    width: a6Width,
-                    height: a6Height,
+                    x: x, y: y,
+                    width: a6Width, height: a6Height,
                 });
             };
 
-            // --- 表面の配置 (PDF-Libは左下が原点 0,0) ---
-            await embedAndDraw('select-f-tl', frontPage, 0, a6Height);       // 左上
-            await embedAndDraw('select-f-tr', frontPage, a6Width, a6Height); // 右上
-            await embedAndDraw('select-f-bl', frontPage, 0, 0);              // 左下
-            await embedAndDraw('select-f-br', frontPage, a6Width, 0);        // 右下
+            // 表面の配置（縦横共通：左下が原点）
+            await embedAndDraw('select-f-tl', frontPage, 0, a6Height);       
+            await embedAndDraw('select-f-tr', frontPage, a6Width, a6Height); 
+            await embedAndDraw('select-f-bl', frontPage, 0, 0);              
+            await embedAndDraw('select-f-br', frontPage, a6Width, 0);        
 
-            // --- 裏面の配置 (長辺綴じ用の反転) ---
-            await embedAndDraw('select-b-tl', backPage, 0, a6Height);       // 左上 (表の右上に対応)
-            await embedAndDraw('select-b-tr', backPage, a6Width, a6Height); // 右上 (表の左上に対応)
-            await embedAndDraw('select-b-bl', backPage, 0, 0);              // 左下 (表の右下に対応)
-            await embedAndDraw('select-b-br', backPage, a6Width, 0);        // 右下 (表の左下に対応)
+            // 裏面の配置
+            await embedAndDraw('select-b-tl', backPage, 0, a6Height);       
+            await embedAndDraw('select-b-tr', backPage, a6Width, a6Height); 
+            await embedAndDraw('select-b-bl', backPage, 0, 0);              
+            await embedAndDraw('select-b-br', backPage, a6Width, 0);        
 
-            // --- 表面に切り取り用の十字点線を挿入 ---
-            // 縦の点線 (中央)
-            frontPage.drawLine({
-                start: { x: a6Width, y: 0 },
-                end: { x: a6Width, y: a4Height },
-                thickness: 0.5,
-                color: PDFLib.rgb(0.5, 0.5, 0.5),
-                dashArray: [4, 4]
-            });
-            // 横の点線 (中央)
-            frontPage.drawLine({
-                start: { x: 0, y: a6Height },
-                end: { x: a4Width, y: a6Height },
-                thickness: 0.5,
-                color: PDFLib.rgb(0.5, 0.5, 0.5),
-                dashArray: [4, 4]
-            });
+            // 十字点線
+            if (enableLinesCheckbox.checked) {
+                [frontPage].forEach(page => {
+                    page.drawLine({
+                        start: { x: a6Width, y: 0 }, end: { x: a6Width, y: a4Height },
+                        thickness: 0.5, color: PDFLib.rgb(0.5, 0.5, 0.5), dashArray: [4, 4]
+                    });
+                    page.drawLine({
+                        start: { x: 0, y: a6Height }, end: { x: a4Width, y: a6Height },
+                        thickness: 0.5, color: PDFLib.rgb(0.5, 0.5, 0.5), dashArray: [4, 4]
+                    });
+                });
+            }
 
-            // ファイル名の生成 (yyyy_mm_dd-yyyy_mm_dd.pdf)
             const startFormatted = formatDateStr(dateStartInput.value);
             const endFormatted = formatDateStr(dateEndInput.value);
             const downloadFileName = `${startFormatted}-${endFormatted}.pdf`;
 
-            // PDFの保存とダウンロード
             const pdfBytes = await outPdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const link = document.createElement('a');
